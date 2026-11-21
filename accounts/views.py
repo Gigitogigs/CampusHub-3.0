@@ -19,6 +19,7 @@ class UniversityCreateView(generics.CreateAPIView):
     permission_classes = [IsPlatformAdminOrStaff]
 
 class UniversityDetailView(generics.RetrieveAPIView):
+    """View university's public details"""
     queryset = University.objects.filter(status=University.Status.ACTIVE)
     serializer_class = PublicUniversitySerializer
     permission_classes = [AllowAny]
@@ -56,6 +57,9 @@ class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+
+    def has_permission(self, request, view):
+        
 
 class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.all()
