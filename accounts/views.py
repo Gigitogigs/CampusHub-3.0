@@ -3,8 +3,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from .models import University, User
-from ..core.permissions import IsPlatformAdmin, IsPlatformAdminOrStaff, IsStudent, IsUniversityAdmin
-from .serializers import UniversitySerializer, UserSerializer, PublicUniversitySerializer
+from core.permissions import IsPlatformAdminOrStaff, IsStudent, IsUniversityAdmin, UniversityUpdatePermission
+from .serializers import UniversitySerializer, UserSerializer, UniversityPublicSerializer, UserPublicSerializer
+from .selectors import users_visible_to
 
 
 class UniversityListView(generics.ListAPIView):
@@ -18,23 +19,26 @@ class UniversityCreateView(generics.CreateAPIView):
     serializer_class = UniversitySerializer
     permission_classes = [IsPlatformAdminOrStaff]
 
+
 class UniversityDetailView(generics.RetrieveAPIView):
     """View university's public details"""
     queryset = University.objects.filter(status=University.Status.ACTIVE)
-    serializer_class = PublicUniversitySerializer
+    serializer_class = UniversityPublicSerializer
     permission_classes = [AllowAny]
-    
+
+
 class UniversityUpdateView(generics.UpdateAPIView):
     serializer_class = UniversitySerializer
-    permission_classes = [IsPlatformAdminOrStaff, IsUniversityAdmin]
+    permission_classes = [UniversityUpdatePermission]
 
     def get_queryset(self):
         user = self.request.user
 
-        if user.is_platform_admin:
+        if user.platform_staff or user.is_staff or user.is_superuser:
             return University.objects.all()
 
         return University.objects.filter(id=user.university_id)
+
 
 class UniversityArchiveView(generics.GenericAPIView):
     queryset = University.objects.all()
@@ -53,22 +57,39 @@ class UniversityArchiveView(generics.GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
+
 class UserListView(generics.ListAPIView):
-    queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
 
-    def has_permission(self, request, view):
-        
+    def get_queryset(self):
+        return users_visible_to(self.request.user).order_by("full_name")
+
 
 class UserDetailView(generics.RetrieveAPIView):
-    queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsStudent, IsPlatformAdminOrStaff]
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        return users_visible_to(self.request.user)
+
+
+class UserPublicDetailView(generics.RetrieveAPIView):
+    """View authenticated user's public details"""
+    queryset = User.objects.filter(deleted_at__isnull=True)
+    serializer_class = UserPublicSerializer
+    permission_classes = [IsAuthenticated]
+
 
 class UserUpdateView(generics.UpdateAPIView):
-    queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsStudent]
+    permission_classes = [IsAuthenticated]
+
+    # Gets user's own record or platform staff can update any user
+    def get_queryset(self):
+        return User.objects.filter(
+            id=self.request.user.id,
+            deleted_at__isnull=True,
+        )
 
 

@@ -119,7 +119,7 @@ class EmailDomain(models.Model):
         db_table = "email_domain"
 
 
-class EmailToken:
+class EmailToken(models.Model):
     class Purpose(models.TextChoices):
         VERIFY_EMAIL = "verify_email", "Verify Email"
         RESET_PASSWORD = "reset_password", "Reset Password"
@@ -149,7 +149,7 @@ class RoleAssignment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid6.uuid7, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="role_assignments")
     role = models.TextField(choices=Role.choices, max_length=50)
-    university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="role_assignments")
+    university = models.ForeignKey(University, on_delete=models.CASCADE, related_name="role_assignments", null=True)
     granted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="granted_role_assignments")
     granted_at = models.DateTimeField(auto_now_add=True)
     revoked_at = models.DateTimeField(blank=True, null=True)

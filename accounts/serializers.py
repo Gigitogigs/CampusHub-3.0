@@ -23,12 +23,13 @@ class UniversitySerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "slug",
-            "status",
             "created_at",
             "updated_at",
         ]
 
-class PublicUniversitySerializer(serializers.ModelSerializer):
+
+
+class UniversityPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = University
         fields = [
@@ -41,6 +42,7 @@ class PublicUniversitySerializer(serializers.ModelSerializer):
             "default_currency",
         ]
         read_only_fields = fields
+
 
 class UserSerializer(serializers.ModelSerializer):
     university = UniversitySerializer(read_only=True)
@@ -75,6 +77,16 @@ class UserSerializer(serializers.ModelSerializer):
             "deleted_at",
         ]
 
+
+class UserPublicSerializer(serializers.ModelSerializer):
+    university_name = serializers.CharField(source="university.name", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ["id", "full_name", "university_name"]
+        read_only_fields = fields
+
+
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True,
@@ -103,6 +115,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             password=password, **validated_data,
         )
 
+
 class EmailDomainSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailDomain
@@ -115,6 +128,7 @@ class EmailDomainSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
 
 class RoleAssignmentSerializer(serializers.ModelSerializer):
     class Meta:
