@@ -1,51 +1,11 @@
 #Converts model instances to JSON and validates incoming JSON
 from rest_framework import serializers
-from .models import User, University, RoleAssignment, EmailDomain
-from django.contrib.auth import get_user_model
+from .models import User, RoleAssignment
+from universities.serializers import UniversityPublicSerializer
 from django.contrib.auth.password_validation import validate_password
 
-class UniversitySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = University
-        fields = [
-            "id",
-            "slug",
-            "name",
-            "short_name",
-            "country_code",
-            "timezone",
-            "default_currency",
-            "status",
-            "settings",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = [
-            "id",
-            "slug",
-            "created_at",
-            "updated_at",
-        ]
-
-
-
-class UniversityPublicSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = University
-        fields = [
-            "id",
-            "slug",
-            "name",
-            "short_name",
-            "country_code",
-            "timezone",
-            "default_currency",
-        ]
-        read_only_fields = fields
-
-
 class UserSerializer(serializers.ModelSerializer):
-    university = UniversitySerializer(read_only=True)
+    university = UniversityPublicSerializer(read_only=True)
 
     class Meta:
         model = User
@@ -114,20 +74,6 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return User.objects.create_user(
             password=password, **validated_data,
         )
-
-
-class EmailDomainSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EmailDomain
-        fields = [
-            "id",
-            "university",
-            "domain",
-            "is_active",
-            "verified_at",
-            "created_at",
-        ]
-        read_only_fields = ["id", "created_at"]
 
 
 class RoleAssignmentSerializer(serializers.ModelSerializer):

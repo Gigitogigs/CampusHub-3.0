@@ -14,6 +14,7 @@ from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
 import os
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,7 +28,12 @@ load_dotenv(BASE_DIR / '.env')
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DJANGO_DEBUG")
+DEBUG = os.getenv("DJANGO_DEBUG", "False").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 ALLOWED_HOSTS = [
     'localhost',
@@ -104,13 +110,15 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
-        env='DATABASE_URL',
-        conn_max_age=600,
-    )
-}
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    raise ImproperlyConfigured("DATABASE_URL must be set to a PostgreSQL connection URL.")
+
+default_database = dj_database_url.parse(database_url, conn_max_age=600)
+if default_database["ENGINE"] != "django.db.backends.postgresql":
+    raise ImproperlyConfigured("CampusHub supports PostgreSQL only.")
+
+DATABASES = {"default": default_database}
 
 
 # Password validation
