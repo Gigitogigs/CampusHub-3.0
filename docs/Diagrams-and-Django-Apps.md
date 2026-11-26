@@ -193,6 +193,7 @@ erDiagram
 | A user has exactly one university at a time | `USER.university_id` is a single column; `UNIQUE (id, university_id)` is the anchor for every composite FK |
 | A domain maps to exactly one university | `EMAIL_DOMAIN.domain` is globally `UNIQUE` |
 | One live grant per (user, role, scope) | Partial unique index on `(user_id, role, university_id) NULLS NOT DISTINCT WHERE revoked_at IS NULL` |
+| Platform authority comes from a global grant | An active `ROLE_ASSIGNMENT(platform_admin, university_id=NULL)` is authoritative; `USER.platform_staff` is a synchronized projection. Django superusers remain an explicit infrastructure override; `is_staff` alone grants no API authority. |
 | A platform admin has no tenant; a tenant role must have one | `role_assignment_scope_check` |
 | An active account must have a tenant unless it is platform staff | `user_active_scope_check` |
 | Verification tokens are single-use and hashed | `token_hash` unique + `consumed_at` + 24 h expiry |
@@ -716,7 +717,7 @@ flowchart TD
 
     subgraph L1["Layer 1 · registry and reference"]
         UNI["universities"]
-        TAX["taxonomy"]
+        TAX["category"]
     end
 
     subgraph L2["Layer 2 · identity"]
@@ -888,15 +889,15 @@ named trigger for building it — "we might need it" is not a trigger.
 |---|---|---|---|---|---|---|
 | 1 | `core` | **MVP** | 0 | — (abstract models only) | Tenant middleware and `SET LOCAL`, scoped managers, DRF base permissions, problem+json handler, pagination, idempotency helper, S3 adapter, image validation, exceptions | — |
 | 2 | `universities` | **MVP** | 1 | `university`, `email_domain` | Tenant registry, institutional email domains, per-tenant settings (branding, currency, timezone), onboarding | `core` |
-| 3 | `taxonomy` | **MVP** | 1 | `category` | Global two-level category tree for clubs and listings; seeded reference data | `core` |
+| 3 | `category` | **MVP** | 1 | `category` | Global two-level category tree for clubs and listings; seeded reference data | `core` |
 | 4 | `accounts` | **MVP** | 1 | `user`, `role_assignment`, `email_token`, `university_transfer` | Registration, email verification, login/logout, password reset and change, delegated role grants, suspension, anonymisation, tenant transfer | `core`, `universities` |
 | 5 | `media` | **MVP** | 1 | `file` | Upload validation and re-encoding, storage keys, public/protected delivery, slots and citation rules, orphan sweep | `core`, `universities`, `accounts` |
-| 6 | `clubs` | **MVP** | 2 | `club`, `membership` | Club lifecycle (draft → pending → approved/rejected → suspended → archived), join policy, membership and club-level admin roles, last-admin rule | `core`, `universities`, `accounts`, `media`, `taxonomy` |
+| 6 | `clubs` | **MVP** | 2 | `club`, `membership` | Club lifecycle (draft → pending → approved/rejected → suspended → archived), join policy, membership and club-level admin roles, last-admin rule | `core`, `universities`, `accounts`, `media`, `category` |
 | 7 | `events` | **MVP** | 2 | `event` | Event lifecycle, publishing rules (approved clubs only), material-change audit, cancellation, discovery feed, public projection | `core`, `universities`, `accounts`, `clubs`, `media` |
 | 8 | `notifications` | **MVP** | 2 | `notification` | Transactional outbox, in-app inbox, email rendering, dedupe keys, retry/backoff, `run_outbox_worker` | `core`, `universities`, `accounts` |
 | 9 | `audit` | **MVP** | 1 | `audit_log` | Append-only record of privileged and financial actions; `record()` used by services; tenant-filtered reader | `core`, `universities` |
 | 10 | `businesses` | **MVP** | 3 | `business` | Seller identity, one-live-business rule, suspension, delivery fee, ownership transfer (platform-only) | `core`, `universities`, `accounts`, `media` |
-| 11 | `marketplace` | **MVP** | 3 | `listing`, `listing_image` | Catalogue: products and services, stock or unlimited, pricing, images, search (PostgreSQL FTS + trigram), optimistic concurrency | `core`, `universities`, `accounts`, `businesses`, `media`, `taxonomy` |
+| 11 | `marketplace` | **MVP** | 3 | `listing`, `listing_image` | Catalogue: products and services, stock or unlimited, pricing, images, search (PostgreSQL FTS + trigram), optimistic concurrency | `core`, `universities`, `accounts`, `businesses`, `media`, `category` |
 | 12 | `cart` | **MVP** | 4 | `cart`, `cart_item` | One active cart per buyer, add/merge/update/remove, availability flags, price-at-add display | `core`, `universities`, `accounts`, `marketplace` |
 | 13 | `orders` | **MVP** | 4 | `checkout`, `order`, `order_item`, `order_status_event` | Checkout transaction (locks, stock decrement, snapshot, idempotency), per-seller split, order state machine, payment *status*, timeline | `core`, `universities`, `accounts`, `businesses`, `marketplace`, `cart` |
 | 14 | `moderation` | **MVP** | 5 | `report` | Reports against six target types, moderation queue, resolution that delegates the remedy to the owning domain | `core`, `universities`, `accounts`, `clubs`, `events`, `marketplace`, `orders` |
