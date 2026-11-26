@@ -7,12 +7,14 @@ from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.apps import apps
 from django.test import SimpleTestCase, TestCase
+from django.utils import timezone
 from django.urls import resolve
 
 from .models import University
 from .permissions import UniversityUpdatePermission
 from .serializers import UniversityPublicSerializer
 from accounts.models import RoleAssignment
+from core.permissions import IsPlatformAdmin
 
 
 class UniversityPublicSerializerTests(SimpleTestCase):
@@ -51,6 +53,7 @@ class UniversityUpdatePermissionTests(TestCase):
             password="test-password",
             full_name="University Admin",
             university=self.university,
+            status="active",
         )
         RoleAssignment.objects.create(
             user=self.user,
@@ -74,6 +77,62 @@ class UniversityUpdatePermissionTests(TestCase):
 
         self.assertFalse(
             permission.has_object_permission(request, None, self.university)
+        )
+
+    def test_global_platform_admin_can_update_university(self):
+        platform_user = get_user_model().objects.create_user(
+            email="platform@example.edu",
+            password="test-password",
+            full_name="Platform Admin",
+            status="active",
+            platform_staff=True,
+        )
+        RoleAssignment.objects.create(
+            user=platform_user,
+            university=None,
+            role=RoleAssignment.Role.PLATFORM_ADMIN,
+        )
+        permission = UniversityUpdatePermission()
+
+        self.assertTrue(
+            permission.has_object_permission(
+                SimpleNamespace(user=platform_user),
+                None,
+                self.university,
+            )
+        )
+
+    def test_django_staff_without_application_grant_is_not_platform_admin(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        permission = IsPlatformAdmin()
+
+        self.assertFalse(
+            permission.has_permission(SimpleNamespace(user=self.user), None)
+        )
+
+    def test_revoked_platform_grant_no_longer_authorizes_global_update(self):
+        platform_user = get_user_model().objects.create_user(
+            email="former-platform@example.edu",
+            password="test-password",
+            full_name="Former Platform Admin",
+            status="active",
+            platform_staff=True,
+        )
+        grant = RoleAssignment.objects.create(
+            user=platform_user,
+            university=None,
+            role=RoleAssignment.Role.PLATFORM_ADMIN,
+        )
+        grant.revoked_at = timezone.now()
+        grant.save(update_fields=["revoked_at"])
+
+        self.assertFalse(
+            UniversityUpdatePermission().has_object_permission(
+                SimpleNamespace(user=platform_user),
+                None,
+                self.university,
+            )
         )
 
 
