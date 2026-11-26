@@ -81,7 +81,6 @@ CORS_ALLOWED_ORIGINS = [
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -120,6 +119,12 @@ if default_database["ENGINE"] != "django.db.backends.postgresql":
     raise ImproperlyConfigured("CampusHub supports PostgreSQL only.")
 
 DATABASES = {"default": default_database}
+ops_database_url = os.getenv("OPS_DATABASE_URL")
+if ops_database_url:
+    ops_database = dj_database_url.parse(ops_database_url, conn_max_age=600)
+    if ops_database["ENGINE"] != "django.db.backends.postgresql":
+        raise ImproperlyConfigured("The operations database must use PostgreSQL.")
+    DATABASES["ops"] = ops_database
 
 
 # Password validation
@@ -141,6 +146,9 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
+AUTHENTICATION_BACKENDS = [
+    "accounts.backends.AccountStatusBackend",
+]
 
 
 # Internationalization
