@@ -36,8 +36,10 @@ RoleAssignmentSerializer
     not through a writable API endpoint.
 """
 
+from datetime import timezone
+
 from rest_framework import serializers
-from .models import User, RoleAssignment
+from .models import EmailToken, User, RoleAssignment
 from universities.serializers import UniversityPublicSerializer
 from django.contrib.auth.password_validation import validate_password
 
@@ -193,3 +195,33 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
             "revoked_by",
         ]
         read_only_fields = fields
+
+
+class LoginSerializer(serializers.Serializer):
+    """Login needs only two fields: email and the password. """
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, style={"input_type", "password"})
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+class EmailVerificationSerializer(serializers.Serializer):
+    """ Serializer for email verification """
+    token = serializers.CharField()
+    university = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        token = EmailToken.objects.filter(token_hash=attrs.get("token"))
+        university = attrs.get("university")
+
+        try:
+            if token.exists():
+                token = token.first()
+            else:
+                raise serializers.ValidationError("Token not found")
+            
+            if token.expires_at < timezone.now():
+                raise serializers.ValidationError("Token has expired")
+        except EmailToken.DoesNotExist:
+            raise serializers.ValidationError("Token not found")
+            

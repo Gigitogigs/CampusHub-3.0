@@ -1,10 +1,11 @@
 #Owns Transactions, invariants, orderinng of side effects.
-import hash
+import hashlib
+
 import secrets
 from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
-from universities.model import EmailDomain. University
+from universities.models import EmailDomain, University
 from .models import EmailToken, User
 
 
@@ -12,8 +13,7 @@ class UnkownEmailDomain(ValueError):
     """Raised when no active university claims the user's email domain """
     
     @transaction.atomic()
-    def register_user(*, email:str, full_name: str, password: str) ->
-    tuple[User, str]:
+    def register_user(*, email:str, full_name: str, password: str) -> tuple[User, str]:
         normalized_email = User.objects.normalize_email(email).strip().lower()
         domain_part = normalized_email.rsplit("@", 1)[-1]
 
@@ -45,10 +45,4 @@ class UnkownEmailDomain(ValueError):
             expires_at=timezone.now() + timedelta(hours=24),
         )
 
-
-class EmailVerification():
-    @transaction.atomic()
-    def verify_email(user, email):
-        user = self.user
-        
     
