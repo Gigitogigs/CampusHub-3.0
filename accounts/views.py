@@ -40,9 +40,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import login, logout, authenticate
 
-from .models import User
+from .models import User, EmailToken
 from .serializers import EmailVerificationSerializer, UserPublicSerializer, UserSerializer, UserCreateSerializer, LoginSerializer
 from .selectors import users_visible_to
+
+from .services import UnkownEmailDomain
 
 
 class UserListView(generics.ListAPIView):
@@ -131,7 +133,7 @@ class SignupView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         try:
             user, _raw_token = register_user(**serializer.validated_data)
-        except UnkownEmailDomain as exct:
+        except UnkownEmailDomain as exc:
             return Response({"email": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
 
         #Trigger verification email here using _raw_token
@@ -148,7 +150,7 @@ class LoginView(generics.GenericAPIView):
         
         user = authenticate(
             request,
-            email=serialzier.validated_data['email'],
+            email=serializer.validated_data['email'],
             password=serializer.validated_data['password'],
         )
         if user is None:
@@ -174,19 +176,5 @@ class EmailVerificationView(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        token = serializer.validated_data.get("token")
-        university = serializer.validated_data.get("university")
 
-        try:
-            email_token = EmailToken.objects.get(token_hash=token, university=university)
-            if email_token.expires_at < timezone.now():
-                return Response({"detail": "Token has expired"}, status=status.HTTP_400_BAD_REQUEST)
-
-            #Mark the email as verified and delete the token
-            email_token.user.email_verified =True
-            email_token.delete()
-            return Response({"detail": "Email verified successfully!"}, status=status.HTTP_200_OK)
-        except EmailToken.DoesNotExist:
-            return Reponse({"detaiil": "Token not found"}, status=status.HTTP_400_BAD_REQUEST)
     

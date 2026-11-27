@@ -19,9 +19,9 @@ class UnkownEmailDomain(ValueError):
 
         email_domain = (
             EmailDomain.objects.select_related("university").filter(
-                domain__isexact=domain_part,
+                domain__iexact=domain_part,
                 is_active=True,
-                university_status=University.Status.ACTIVE,
+                university__status=University.Status.ACTIVE,
             ).first()
         )
         if email_domain is None:
@@ -44,5 +44,41 @@ class UnkownEmailDomain(ValueError):
             token_hash=token_hash,
             expires_at=timezone.now() + timedelta(hours=24),
         )
+        return user, raw_token 
 
-    
+
+class EmailVerificationError(ValueError):
+    """Raised when email verification fails due to invalid or expired token."""
+
+    #wrap in tenant_scope(user.university_id) since RLS is on for accounts_user table.
+    @transaction.atomic()
+    def verify_email_token(raw_token: str) -> User:
+        digest = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        token = (EmailToken.objects.select_for_update().filter(token_hash=digest, purpose=EmailToken.Purpose.VERIFY_EMAIL).first())
+        now = timezone.now()
+
+        if token is None:
+            raise EmailVerificationError("The provided email verification token is invalid.")
+        if token.consumed_at is not None:
+            raise EmailVerificationError("The provided email verification token has been used.")
+        if token.expires_at < now:
+            raise EmailVerificationError("The provided email verification token has expired.")
+
+        user = User.objects.select_for_update().get(pk=token.user_id)
+        if user.status == User.Status.ACTIVE:
+            token.consumed_at = now; token.save(update_fields=["consumed_at"])
+            return user
+        if user.status != User.Status.PENDING:
+            raise EmailVerificationError("User status not pending")
+        if user.university is None:
+            raise EmailVerificationError("User has no university")
+
+        
+        token.consumed_at = now; token.save(update_fields=["consumed_at"])
+        user.status = User.Status.ACTIVE
+        user.email_verified_at = now
+
+        if user.university != token.university:
+            raise EmailVerificationError("Token university does not match user university")
+        else:
+            user.save(update_fields=["status", "email_verified_at"])
